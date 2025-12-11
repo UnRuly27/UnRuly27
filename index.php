@@ -1,0 +1,205 @@
+<?php
+require_once 'includes/config.php';
+
+// Redirect if already logged in
+if (isLoggedIn()) {
+    $role = $_SESSION['user_role'];
+    if ($role == 'super_admin' || $role == 'admin') {
+        header('Location: admin/');
+        exit();
+    } elseif ($role == 'candidate') {
+        header('Location: candidate/');
+        exit();
+    } else {
+        header('Location: voter/');
+        exit();
+    }
+}
+
+$error = '';
+
+// Handle login
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $username = sanitize($_POST['username']);
+    $password = $_POST['password'];
+    
+    if (empty($username) || empty($password)) {
+        $error = 'Please enter both username and password';
+    } else {
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ? AND is_active = 1");
+        $stmt->execute([$username]);
+        $user = $stmt->fetch();
+        
+        if ($user && password_verify($password, $user['password'])) {
+            $_SESSION['user_id'] = $user['user_id'];
+            $_SESSION['username'] = $user['username'];
+            $_SESSION['user_role'] = $user['user_role'];
+            $_SESSION['full_name'] = $user['first_name'] . ' ' . $user['last_name'];
+            $_SESSION['dept_id'] = $user['dept_id'];
+            
+            $stmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE user_id = ?");
+            $stmt->execute([$user['user_id']]);
+            
+            logActivity('Login', 'User logged in successfully');
+            
+            // Redirect based on role
+            if ($user['user_role'] == 'super_admin' || $user['user_role'] == 'admin') {
+                header('Location: admin/');
+            } elseif ($user['user_role'] == 'candidate') {
+                header('Location: candidate/');
+            } else {
+                header('Location: voter/');
+            }
+            exit();
+        } else {
+            $error = 'Invalid username or password';
+        }
+    }
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - <?php echo SITE_NAME; ?></title>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <style>
+        .logo-top {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .logo-image {
+            height: 80px;
+            width: auto;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+        .system-name {
+            font-size: 28px;
+            font-weight: bold;
+            color: #ffffffff;
+            margin: 0;
+        }
+        .system-tagline {
+            color: #718096;
+            font-size: 16px;
+            margin-top: 5px;
+        }
+        .login-container {
+            max-width: 450px;
+            margin: 30px auto;
+        }
+        .login-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e2e8f0;
+        }
+        .login-title {
+            text-align: center;
+            color: #555;
+            margin-bottom: 25px;
+            font-size: 20px;
+        }
+        .rounded-input {
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+            padding: 12px 15px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        .rounded-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .rounded-btn {
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        .admin-note {
+            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            border: 1px solid #e2e8f0;
+        }
+        .register-section {
+            text-align: center;
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="login-container">
+            <!-- Logo on Top -->
+            <div class="logo-top">
+                <img src="assets/images/logo.jpg" alt="DMI University Logo" class="logo-image">
+                <h1 class="system-name"><?php echo SITE_NAME; ?></h1>
+              
+            </div>
+            
+            <!-- Login Card -->
+            <div class="login-card">
+                <?php if ($error): ?>
+                    <div class="alert alert-error" style="border-radius: 8px;"><?php echo $error; ?></div>
+                <?php endif; ?>
+                
+                <h3 class="login-title">Login to Your Account</h3>
+                
+                <form method="POST" action="">
+                    <div class="form-group">
+                        <label for="username" style="display: block; margin-bottom: 8px; font-weight: 600; color: #555;">Username</label>
+                        <input type="text" id="username" name="username" class="form-control rounded-input" required 
+                               placeholder="Enter your username">
+                    </div>
+                    
+                    <div class="form-group" style="margin-top: 20px;">
+                        <label for="password" style="display: block; margin-bottom: 8px; font-weight: 600; color: #555;">Password</label>
+                        <input type="password" id="password" name="password" class="form-control rounded-input" required
+                               placeholder="Enter your password">
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary rounded-btn" style="width: 100%; margin-top: 25px;">
+                        Login to Dashboard
+                    </button>
+                </form>
+                
+                <!-- Registration Section -->
+                <div class="register-section">
+                    <p style="color: #666; margin-bottom: 15px;">New to the system?</p>
+                    <a href="register.php" class="btn" style="width: 100%; background: #e2e8f0; color: #4a5568; border-radius: 8px;">
+                        Create New Account
+                    </a>
+                </div>
+                
+                <!-- Admin Credentials -->
+                <div class="admin-note">
+                    <p style="font-size: 14px; color: #666; text-align: center; margin: 0;">
+                        <strong style="color: #667eea; display: block; margin-bottom: 8px;">System Administrator Access</strong>
+                        <span style="background: #fff; padding: 6px 12px; border-radius: 6px; display: inline-block; margin: 5px;">
+                            Username: <strong>Tevin</strong>
+                        </span>
+                        <span style="background: #fff; padding: 6px 12px; border-radius: 6px; display: inline-block; margin: 5px;">
+                            Password: <strong>Ohaneela</strong>
+                        </span>
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Footer -->
+            <div style="text-align: center; margin-top: 30px; color: #a0aec0; font-size: 14px;">
+                <p>© 2025 DMI St. John the Baptist University, Blantyre</p>
+                <p>Bachelor of Science in Computer Science</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
